@@ -146,6 +146,16 @@
     }
   }
 
+  function isExcelFile(file){
+    const name = String(file?.name || "").trim().toLowerCase();
+    const mime = String(file?.type || "").toLowerCase();
+    return (
+      name.endsWith(".xls") ||
+      name.endsWith(".xlsx") ||
+      (mime && (mime.includes("excel") || mime.includes("spreadsheet")))
+    );
+  }
+
   async function ingest(file){
     setStatus("Lendo arquivo…");
     const stopFake = fakeProgress([
@@ -155,7 +165,7 @@
       "Preparando preview…"
     ]);
 
-    const isExcel = file.name.toLowerCase().endsWith(".xls") || file.name.toLowerCase().endsWith(".xlsx");
+    const isExcel = isExcelFile(file);
     const payload = {
       name: file.name,
       mime: file.type,
