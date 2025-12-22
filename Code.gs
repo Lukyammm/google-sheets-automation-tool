@@ -66,7 +66,7 @@ function api_ingestFile(payload) {
     } else if (isExcel_(fileName, mime)) {
       throw new Error("Formato Excel inválido no upload. Recarregue o arquivo.");
     } else {
-      throw new Error("Formato não suportado. Use CSV, XLS ou XLSX.");
+      throw new Error("Formato não suportado. Use CSV.");
     }
 
   } catch (e) {
