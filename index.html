@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <?!= include_("styles"); ?>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo">S</div>
+          <div class="brandText">
+            <div class="title">Sheet Intake</div>
+            <div class="subtitle">Upload → Padroniza → Joga na Base</div>
+          </div>
+        </div>
+
+        <div class="statusPill" id="statusPill">Inicializando…</div>
+      </header>
+
+      <main class="grid">
+        <section class="card drop" id="dropzone">
+          <div class="dropInner">
+            <div class="dropIcon">⇪</div>
+            <div class="dropTitle">Arraste sua planilha aqui</div>
+            <div class="dropHint">CSV ou XLSX • Interface decente • Zero drama</div>
+            <div class="row">
+              <button class="btn" id="pickBtn">Escolher arquivo</button>
+              <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" hidden />
+              <button class="btn ghost" id="demoBtn">Usar demo</button>
+            </div>
+
+            <div class="progressWrap" id="progressWrap" style="display:none;">
+              <div class="progressBar"><div class="progressFill" id="progressFill"></div></div>
+              <div class="progressMeta" id="progressMeta">Lendo arquivo…</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Destino inteligente</div>
+              <div class="cardSub">Detecta “Internacao”, “Visitante”, etc. e sugere a base</div>
+            </div>
+            <span class="badge" id="matchBadge">—</span>
+          </div>
+
+          <div class="form">
+            <label class="label">Spreadsheet destino</label>
+            <input class="input" id="ssid" placeholder="ID da planilha (vazio = planilha atual)" />
+
+            <label class="label">Aba destino</label>
+            <input class="input" id="sheetName" placeholder="Ex: BASE_INTERNACAO" />
+
+            <div class="row2">
+              <div>
+                <label class="label">Modo</label>
+                <select class="input" id="mode">
+                  <option value="APPEND">Acrescentar (append)</option>
+                  <option value="REPLACE">Substituir (replace)</option>
+                  <option value="CREATE_SHEET">Criar aba nova</option>
+                </select>
+              </div>
+              <div class="toggle">
+                <input type="checkbox" id="createIfMissing" checked />
+                <label for="createIfMissing">Criar aba se não existir</label>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="cardTitle">Padronização</div>
+            <div class="row3">
+              <label class="check"><input type="checkbox" id="trimCells" checked /> Tirar espaços (trim)</label>
+              <label class="check"><input type="checkbox" id="removeEmptyRows" checked /> Remover linhas vazias</label>
+              <label class="check"><input type="checkbox" id="removeEmptyCols" checked /> Remover colunas vazias</label>
+              <label class="check"><input type="checkbox" id="normalizeHeaders" checked /> Normalizar cabeçalho</label>
+              <label class="check"><input type="checkbox" id="dedupeHeaders" checked /> Evitar cabeçalho duplicado</label>
+              <label class="check"><input type="checkbox" id="numberCoerce" /> Converter números</label>
+              <label class="check"><input type="checkbox" id="dateCoerce" /> Converter datas (dd/mm/aaaa)</label>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row2">
+              <label class="check subtle">
+                <input type="checkbox" id="dontAskAgain" />
+                ( ) não perguntar novamente (salvar preferências)
+              </label>
+
+              <button class="btn primary" id="importBtn" disabled>Importar agora</button>
+            </div>
+
+            <div class="micro" id="microNote">—</div>
+          </div>
+        </section>
+
+        <section class="card wide">
+          <div class="cardHeader">
+            <div>
+              <div class="cardTitle">Preview</div>
+              <div class="cardSub">Mostra só um pedaço pra não explodir a quota</div>
+            </div>
+            <button class="btn ghost" id="copyJsonBtn" disabled>Copiar JSON</button>
+          </div>
+
+          <div class="tableWrap">
+            <table class="table" id="previewTable"></table>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span class="muted">Config em aba <b>CONFIG</b>. Log em <b>LOG_IMPORT</b>. Preferências por usuário.</span>
+      </footer>
+    </div>
+
+    <?!= include_("app.js"); ?>
+  </body>
+</html>
