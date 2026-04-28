@@ -95,20 +95,32 @@
   }
 
   function renderMetrics(res){
+    const metricFile = el("metricFile");
+    const metricRows = el("metricRows");
+    const metricCols = el("metricCols");
+    const metricScore = el("metricScore");
+    if (!metricFile || !metricRows || !metricCols || !metricScore) return;
+
     const fullValues = res?.preview?.fullValues || [];
     const fileName = res?.file?.name || "—";
     const rows = Math.max(0, fullValues.length - 1);
     const cols = fullValues[0]?.length || 0;
     const score = res?.suggestion?.score || 0;
 
-    el("metricFile").textContent = fileName;
-    el("metricRows").textContent = String(rows);
-    el("metricCols").textContent = String(cols);
-    el("metricScore").textContent = String(score);
+    metricFile.textContent = fileName;
+    metricRows.textContent = String(rows);
+    metricCols.textContent = String(cols);
+    metricScore.textContent = String(score);
   }
 
   function renderChart(preview){
     const canvas = el("previewChart");
+    if (!canvas) {
+      if (state.chart) state.chart.destroy();
+      state.chart = null;
+      return;
+    }
+
     const rows = preview?.rows || [];
     const labels = rows.map((_, idx) => `Linha ${idx + 1}`);
     const sizes = rows.map((r) => r.filter((c) => String(c ?? "").trim() !== "").length);
