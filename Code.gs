@@ -9,6 +9,7 @@ const APP = {
   MAX_CELLS_PER_WRITE: 50000,
   DESTINATIONS_KEY: "destinations_v1",
   RULES_KEY: "rules_v1",
+  PREFS_KEY: "prefs_v2",
 };
 
 /* =========================
@@ -164,15 +165,19 @@ function api_ingestFile(payload) {
     throw new Error("Erro ao processar arquivo: " + e.message);
   }
 
-  const suggestion = suggestRoute_(fileName, values);
-  const preview = buildPreview_(values);
+  const layoutSuggestion = detectLayout_(values);
+  const alignedValues = applyLayoutToValues_(values, layoutSuggestion, false);
+  const suggestion = suggestRoute_(fileName, alignedValues);
+  const preview = buildPreview_(alignedValues);
 
   return {
     ok: true,
     file: { name: fileName, size: inputSize },
     meta,
     suggestion,
+    layoutSuggestion,
     preview,
+    rawValues: values,
   };
 }
 
@@ -185,7 +190,13 @@ function api_commitImport(req) {
   }
 
   const start = Date.now();
-  let values = standardizeValues_(req.values, req.standardize || {});
+  const layout = req.layout || {};
+  let values = applyLayoutToValues_(req.values, layout, true);
+  values = standardizeValues_(values, req.standardize || {});
+
+  if (!values.length || !values[0].length) {
+    throw new Error("Não há dados após aplicar a configuração de cabeçalho e coluna inicial.");
+  }
 
   const route = req.route;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -208,6 +219,13 @@ function api_commitImport(req) {
     saveUserPrefs_({
       lastRoute: route,
       lastStandardize: req.standardize,
+      lastLayout: layout,
+    });
+
+    saveTargetPrefs_(route, {
+      standardize: req.standardize || {},
+      layout: layout || {},
+      mode: route.mode || "APPEND",
     });
   }
 
@@ -268,6 +286,101 @@ function buildPreview_(values) {
 /* =========================
  * STANDARDIZATION
  * ========================= */
+/* =========================
+ * LAYOUT (HEADER/COLUNA)
+ * ========================= */
+function detectLayout_(values) {
+  const safe = Array.isArray(values) ? values : [];
+  if (!safe.length) {
+    return { headerRowNumber: 1, startColumnLetter: "A", confidence: 0 };
+  }
+
+  const sampleLimit = Math.min(15, safe.length);
+  let bestRow = 0;
+  let bestScore = -1;
+
+  for (let r = 0; r < sampleLimit; r++) {
+    const row = Array.isArray(safe[r]) ? safe[r] : [];
+    const nonEmpty = row.filter(c => String(c ?? "").trim() !== "").length;
+    if (!nonEmpty) continue;
+
+    const textCells = row.filter(c => {
+      const raw = String(c ?? "").trim();
+      return raw && /[A-Za-zÀ-ÿ]/.test(raw);
+    }).length;
+
+    const unique = new Set(row.map(c => String(c ?? "").trim()).filter(Boolean)).size;
+    const score = (nonEmpty * 3) + (textCells * 2) + unique;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestRow = r;
+    }
+  }
+
+  const header = Array.isArray(safe[bestRow]) ? safe[bestRow] : [];
+  let firstCol = 0;
+  for (let c = 0; c < header.length; c++) {
+    if (String(header[c] ?? "").trim() !== "") {
+      firstCol = c;
+      break;
+    }
+  }
+
+  const confidence = Math.max(0, Math.min(100, Math.round((bestScore / 40) * 100)));
+  return {
+    headerRowNumber: bestRow + 1,
+    startColumnLetter: columnIndexToLetter_(firstCol),
+    confidence,
+  };
+}
+
+function applyLayoutToValues_(values, layout, strict) {
+  const safe = Array.isArray(values) ? values.map(r => Array.isArray(r) ? r.slice() : []) : [];
+  if (!safe.length) return safe;
+
+  const headerRowNumber = Math.max(1, Number(layout?.headerRowNumber || 1));
+  const startColumnLetter = String(layout?.startColumnLetter || "A").trim() || "A";
+
+  const headerIdx = headerRowNumber - 1;
+  const colIdx = columnLetterToIndex_(startColumnLetter);
+
+  if (strict && (headerIdx >= safe.length)) {
+    throw new Error("Linha do cabeçalho fora do intervalo do arquivo.");
+  }
+
+  const slicedRows = safe.slice(Math.min(headerIdx, safe.length - 1));
+  const cropped = slicedRows.map(row => row.slice(colIdx));
+
+  const hasAnyValue = cropped.some(row => row.some(cell => String(cell ?? "").trim() !== ""));
+  if (strict && !hasAnyValue) {
+    throw new Error("A coluna inicial removeu todos os dados visíveis.");
+  }
+
+  return cropped;
+}
+
+function columnLetterToIndex_(letter) {
+  const clean = String(letter || "A").toUpperCase().replace(/[^A-Z]/g, "");
+  if (!clean) return 0;
+
+  let idx = 0;
+  for (let i = 0; i < clean.length; i++) {
+    idx = idx * 26 + (clean.charCodeAt(i) - 64);
+  }
+  return Math.max(0, idx - 1);
+}
+
+function columnIndexToLetter_(index) {
+  let n = Math.max(0, Number(index || 0));
+  let out = "";
+  do {
+    out = String.fromCharCode((n % 26) + 65) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+}
+
 function standardizeValues_(values, opt) {
   let v = values.map(r => r.map(c => c));
 
@@ -437,12 +550,33 @@ function seedDestinations_() {
  * ========================= */
 
 function getUserPrefs_() {
-  const raw = PropertiesService.getUserProperties().getProperty("prefs");
-  return raw ? JSON.parse(raw) : {};
+  const raw = PropertiesService.getUserProperties().getProperty(APP.PREFS_KEY);
+  if (!raw) return {};
+
+  try {
+    return JSON.parse(raw) || {};
+  } catch (e) {
+    return {};
+  }
 }
 
 function saveUserPrefs_(obj) {
-  PropertiesService.getUserProperties().setProperty("prefs", JSON.stringify(obj));
+  const current = getUserPrefs_();
+  const merged = Object.assign({}, current, obj || {});
+  PropertiesService.getUserProperties().setProperty(APP.PREFS_KEY, JSON.stringify(merged));
+}
+
+function saveTargetPrefs_(route, payload) {
+  const spreadsheetId = String(route?.targetSpreadsheetId || "").trim();
+  const sheetName = String(route?.targetSheetName || "").trim();
+  if (!spreadsheetId || !sheetName) return;
+
+  const prefs = getUserPrefs_();
+  const targetPrefs = prefs.targetPrefs || {};
+  const key = `${spreadsheetId}::${sheetName}`;
+  targetPrefs[key] = Object.assign({}, targetPrefs[key] || {}, payload || {});
+
+  saveUserPrefs_({ targetPrefs });
 }
 
 function logImport_(row) {
