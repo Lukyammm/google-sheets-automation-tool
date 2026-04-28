@@ -118,6 +118,30 @@
             <div class="divider"></div>
 
             <div>
+              <p class="eyebrow">Estrutura do arquivo</p>
+              <h3 class="section-title section-title-sm">Detecção de cabeçalho</h3>
+              <div class="filter-chips">
+                <label class="check-chip">
+                  <input type="checkbox" id="autoLayout" checked />
+                  <span>Detectar automaticamente cabeçalho e coluna inicial</span>
+                </label>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label class="label">Cabeçalho na linha</label>
+                  <input class="input" id="headerRowNumber" type="number" min="1" value="1" />
+                </div>
+                <div>
+                  <label class="label">Base começa na coluna</label>
+                  <input class="input" id="startColumnLetter" placeholder="A" value="A" />
+                </div>
+              </div>
+              <div class="micro" id="layoutNote">Ajuste se existir conteúdo acima do cabeçalho.</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div>
               <p class="eyebrow">Qualidade de dados</p>
               <h3 class="section-title section-title-sm">Padronização</h3>
               <div class="filter-chips">
@@ -136,7 +160,7 @@
             <div class="actions-grid">
               <label class="check subtle">
                 <input type="checkbox" id="dontAskAgain" />
-                ( ) não perguntar novamente (salvar preferências)
+                Salvar este padrão para a aba selecionada
               </label>
 
               <button class="btn btn-primary" id="importBtn" disabled>Importar agora</button>

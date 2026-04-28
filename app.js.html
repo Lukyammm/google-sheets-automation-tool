@@ -4,6 +4,7 @@
   const state = {
     boot: null,
     lastIngest: null,
+    rawValues: null,
     values: null,
     chart: null,
   };
@@ -92,6 +93,24 @@
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
+  }
+
+  function normalizeColumnLetter(value){
+    const clean = String(value || "").toUpperCase().replace(/[^A-Z]/g, "");
+    return clean || "A";
+  }
+
+  function setLayoutInputsEnabled(enabled){
+    el("headerRowNumber").disabled = !enabled;
+    el("startColumnLetter").disabled = !enabled;
+  }
+
+  function applyLayoutSuggestion(layout){
+    if (!layout) return;
+    el("headerRowNumber").value = String(layout.headerRowNumber || 1);
+    el("startColumnLetter").value = normalizeColumnLetter(layout.startColumnLetter || "A");
+    const confidence = Number(layout.confidence || 0);
+    el("layoutNote").textContent = `Detectado automaticamente: cabeçalho na linha ${layout.headerRowNumber || 1}, coluna ${normalizeColumnLetter(layout.startColumnLetter || "A")} (confiança ${confidence}%).`;
   }
 
   function renderMetrics(res){
@@ -221,6 +240,7 @@
     if (!prefs) return;
     const std = prefs.lastStandardize || null;
     const route = prefs.lastRoute || null;
+    const layout = prefs.lastLayout || null;
 
     if (std){
       el("trimCells").checked = !!std.trimCells;
@@ -240,6 +260,34 @@
       el("mode").value = route.mode || "APPEND";
       el("microNote").textContent = "Preferências carregadas (rota + padronização).";
     }
+    if (layout) {
+      el("headerRowNumber").value = String(layout.headerRowNumber || 1);
+      el("startColumnLetter").value = normalizeColumnLetter(layout.startColumnLetter || "A");
+    }
+  }
+
+  function applyTargetPrefsForCurrentSelection(){
+    const prefs = state.boot?.prefs || {};
+    const map = prefs.targetPrefs || {};
+    const key = `${el("spreadsheetId").value}::${el("sheetName").value}`;
+    const hit = map[key];
+    if (!hit) return;
+
+    if (hit.mode) el("mode").value = hit.mode;
+    if (hit.standardize) {
+      el("trimCells").checked = !!hit.standardize.trimCells;
+      el("removeEmptyRows").checked = !!hit.standardize.removeEmptyRows;
+      el("removeEmptyCols").checked = !!hit.standardize.removeEmptyCols;
+      el("normalizeHeaders").checked = !!hit.standardize.normalizeHeaders;
+      el("dedupeHeaders").checked = !!hit.standardize.dedupeHeaders;
+      el("numberCoerce").checked = !!hit.standardize.numberCoerce;
+      el("dateCoerce").checked = !!hit.standardize.dateCoerce;
+    }
+    if (hit.layout) {
+      el("headerRowNumber").value = String(hit.layout.headerRowNumber || 1);
+      el("startColumnLetter").value = normalizeColumnLetter(hit.layout.startColumnLetter || "A");
+    }
+    el("layoutNote").textContent = "Padrão salvo carregado para esta aba.";
   }
 
   function isExcelFile(file){
@@ -303,6 +351,13 @@
     };
   }
 
+  function collectLayout(){
+    return {
+      headerRowNumber: Math.max(1, Number(el("headerRowNumber").value || 1)),
+      startColumnLetter: normalizeColumnLetter(el("startColumnLetter").value || "A"),
+    };
+  }
+
   function collectRoute(){
     return {
       targetSpreadsheetId: el("spreadsheetId").value,
@@ -336,8 +391,9 @@
 
     const req = {
       fileName: state.lastIngest?.file?.name || "import",
-      values: state.values,
+      values: state.rawValues || state.values,
       route: collectRoute(),
+      layout: collectLayout(),
       standardize: collectStandardize(),
       remember: {
         dontAskAgain: el("dontAskAgain").checked,
@@ -401,6 +457,7 @@
 
       const res = await ingest(file);
       state.lastIngest = res;
+      state.rawValues = res.rawValues || [];
 
       if (res.preview?.fullValues) {
         state.values = res.preview.fullValues;
@@ -409,6 +466,9 @@
       }
 
       await applySuggestion(res.suggestion);
+      if (el("autoLayout").checked) {
+        applyLayoutSuggestion(res.layoutSuggestion);
+      }
       renderPreview(res.preview);
       renderMetrics(res);
       renderChart(res.preview);
@@ -430,9 +490,20 @@
     el("spreadsheetId").onchange = async () => {
       try {
         await loadSheetsForSelectedSpreadsheet();
+        applyTargetPrefsForCurrentSelection();
         el("destinationNote").textContent = `Destino selecionado: ${currentDestinationName()}`;
       } catch (err) {
         el("destinationNote").textContent = `Erro ao carregar abas: ${err.message}`;
+      }
+    };
+    el("sheetName").onchange = () => {
+      applyTargetPrefsForCurrentSelection();
+    };
+    el("autoLayout").onchange = () => {
+      const manualEnabled = !el("autoLayout").checked;
+      setLayoutInputsEnabled(manualEnabled);
+      if (!manualEnabled && state.lastIngest?.layoutSuggestion) {
+        applyLayoutSuggestion(state.lastIngest.layoutSuggestion);
       }
     };
 
@@ -518,6 +589,7 @@
       const json = JSON.stringify({
         suggestion: state.lastIngest?.suggestion,
         route: collectRoute(),
+        layout: collectLayout(),
         standardize: collectStandardize(),
       }, null, 2);
       await navigator.clipboard.writeText(json);
@@ -538,6 +610,8 @@
           await loadSheetsForSelectedSpreadsheet();
         }
         applyPrefs(res.prefs);
+        applyTargetPrefsForCurrentSelection();
+        setLayoutInputsEnabled(false);
         el("destinationNote").textContent = "Cadastro de planilhas carregado.";
       })
       .withFailureHandler((err) => {
