@@ -1,4 +1,4 @@
-# UPSHEET
+# Google Sheets Automation Tool
 
 Google Sheets automation tool built with JavaScript and Google Apps Script to improve productivity.
 
