@@ -1,6 +1,6 @@
-# Google Sheets Automation Tool
+# Spreadsheet Intake Automation
 
-Repository: `google-sheets-automation-tool`
+Repository: `spreadsheet-intake-automation`
 
 ## Overview
 
